@@ -38,6 +38,7 @@ JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALG = "HS256"
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 STRIPE_PAYMENT_LINK = os.environ.get('STRIPE_PAYMENT_LINK', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 GATED_URL = os.environ.get('GATED_URL', '')
 MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
 MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
@@ -69,10 +70,6 @@ class OTPVerifyRequest(BaseModel):
     code: str
 
 
-class ResendOTPRequest(BaseModel):
-    pass
-
-
 class UserResponse(BaseModel):
     id: str
     email: EmailStr
@@ -84,6 +81,10 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     user: UserResponse
+
+
+class PortalRequest(BaseModel):
+    return_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +198,6 @@ async def check_stripe_subscription(email: str) -> bool:
     if not STRIPE_API_KEY:
         return False
     try:
-        # Search customers by email
         customers = await asyncio.to_thread(
             lambda: stripe.Customer.list(email=email, limit=10)
         )
@@ -215,6 +215,34 @@ async def check_stripe_subscription(email: str) -> bool:
     except Exception as e:
         logger.error(f"Unexpected error checking Stripe subscription for {email}: {e}")
         return False
+
+
+async def _activate_subscription_for_email(email: Optional[str], active: bool) -> None:
+    if not email:
+        return
+    email = email.lower().strip()
+    res = await db.users.update_one(
+        {"email": email},
+        {"$set": {
+            "subscription_active": active,
+            "subscription_last_checked_at": datetime.now(timezone.utc),
+        }},
+    )
+    logger.info(
+        f"Webhook updated subscription_active={active} for {email} "
+        f"(matched={res.matched_count}, modified={res.modified_count})"
+    )
+
+
+async def _email_for_customer(customer_id: Optional[str]) -> Optional[str]:
+    if not customer_id:
+        return None
+    try:
+        cust = await asyncio.to_thread(lambda: stripe.Customer.retrieve(customer_id))
+        return getattr(cust, "email", None)
+    except Exception as e:
+        logger.error(f"Could not retrieve customer {customer_id}: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +286,6 @@ async def register(req: RegisterRequest):
     }
     await db.users.insert_one(user_doc)
 
-    # Issue an OTP
     code = generate_otp()
     await db.otp_codes.delete_many({"email": email})
     await db.otp_codes.insert_one({
@@ -322,7 +349,6 @@ async def otp_verify(req: OTPVerifyRequest, user: dict = Depends(get_current_use
 # ---- SUBSCRIPTION GATE -----------------------------------------------------
 @api.post("/subscription/check")
 async def subscription_check(user: dict = Depends(get_current_user)):
-    """Verify with Stripe if the user's email has an active subscription."""
     if not user.get("email_verified"):
         raise HTTPException(status_code=403, detail="Email not verified")
     is_active = await check_stripe_subscription(user["email"])
@@ -338,7 +364,6 @@ async def subscription_check(user: dict = Depends(get_current_user)):
 
 @api.get("/gated/url")
 async def gated_url(user: dict = Depends(get_current_user)):
-    """Return the gated URL only if user is verified + subscribed."""
     if not user.get("email_verified"):
         raise HTTPException(status_code=403, detail="Email not verified")
     if not user.get("subscription_active"):
@@ -347,17 +372,11 @@ async def gated_url(user: dict = Depends(get_current_user)):
 
 
 # ---- BILLING PORTAL --------------------------------------------------------
-class PortalRequest(BaseModel):
-    return_url: Optional[str] = None
-
-
 @api.post("/billing/portal")
 async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_user)):
-    """Create a Stripe Customer Portal session so the user can manage their subscription."""
     if not STRIPE_API_KEY:
         raise HTTPException(status_code=503, detail="Billing not configured")
     try:
-        # Find the customer by email on the Stripe account.
         customers = await asyncio.to_thread(
             lambda: stripe.Customer.list(email=user["email"], limit=1)
         )
@@ -375,7 +394,6 @@ async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_us
         )
         return {"url": session.url}
     except stripe.error.InvalidRequestError as e:
-        # Most common: portal not configured on Stripe Dashboard.
         msg = str(e)
         if "configuration" in msg.lower() or "no configuration" in msg.lower():
             raise HTTPException(
@@ -391,6 +409,72 @@ async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_us
         raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
 
 
+# ---- STRIPE WEBHOOK --------------------------------------------------------
+@app.post("/api/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Receive Stripe webhook events and update subscription_active on users."""
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.warning("Webhook received but STRIPE_WEBHOOK_SECRET not set — ignoring")
+        return {"status": "ignored", "reason": "webhook secret not configured"}
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid webhook: {str(e)}")
+
+    event_type = event.get("type", "")
+    obj = event.get("data", {}).get("object", {}) or {}
+
+    event_id = event.get("id")
+    if event_id:
+        already = await db.stripe_events.find_one({"event_id": event_id})
+        if already:
+            return {"status": "duplicate"}
+        await db.stripe_events.insert_one({
+            "event_id": event_id,
+            "type": event_type,
+            "received_at": datetime.now(timezone.utc),
+        })
+
+    try:
+        if event_type in ("customer.subscription.created", "customer.subscription.updated"):
+            status_str = obj.get("status")
+            email = await _email_for_customer(obj.get("customer"))
+            active = status_str in ("active", "trialing", "past_due")
+            await _activate_subscription_for_email(email, active)
+
+        elif event_type == "customer.subscription.deleted":
+            email = await _email_for_customer(obj.get("customer"))
+            await _activate_subscription_for_email(email, False)
+
+        elif event_type == "invoice.paid":
+            email = obj.get("customer_email") or await _email_for_customer(obj.get("customer"))
+            await _activate_subscription_for_email(email, True)
+
+        elif event_type == "checkout.session.completed":
+            payment_status = obj.get("payment_status")
+            email = (
+                obj.get("customer_email")
+                or (obj.get("customer_details") or {}).get("email")
+                or await _email_for_customer(obj.get("customer"))
+            )
+            if payment_status == "paid":
+                await _activate_subscription_for_email(email, True)
+
+        else:
+            logger.info(f"Webhook event {event_type} ignored")
+
+    except Exception as e:
+        logger.exception(f"Error handling webhook {event_type}: {e}")
+        raise HTTPException(status_code=500, detail="Webhook handler error")
+
+    return {"status": "ok"}
+
+
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
@@ -399,6 +483,7 @@ async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.otp_codes.create_index("email")
+    await db.stripe_events.create_index("event_id", unique=True)
     logger.info("Indexes ensured. Service ready.")
 
 
