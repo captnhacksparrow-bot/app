@@ -34,7 +34,7 @@ export default function Welcome() {
     else router.replace("/webview");
   }, [user, loading, rootNavState?.key, router]);
 
-  if (loading) {
+  if (!rootNavState?.key || loading) {
     return (
       <View style={styles.loader} testID="welcome-loading">
         <ActivityIndicator color={colors.primary} size="large" />

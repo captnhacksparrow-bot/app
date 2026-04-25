@@ -46,7 +46,7 @@ export default function Settings() {
     }
   };
 
-  if (loading || !user) {
+  if (!rootNavState?.key || loading || !user) {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="settings-loading">
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>

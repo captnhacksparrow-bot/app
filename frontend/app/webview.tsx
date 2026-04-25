@@ -48,6 +48,21 @@ export default function GatedView() {
       .catch((e) => setError(e?.message || "Could not load."));
   }, [user, loading, rootNavState?.key, router]);
 
+  // Prevent UI flashing while auth/router are not ready
+  if (!rootNavState?.key || loading || !user || !user.email_verified || !user.subscription_active) {
+    if (error) {
+      // fall through to error UI
+    } else {
+      return (
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="webview-loading">
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color={colors.primary} size="large" />
+          </View>
+        </SafeAreaView>
+      );
+    }
+  }
+
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
