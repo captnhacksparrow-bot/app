@@ -21,12 +21,13 @@ const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/art
 
 export default function GatedView() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (loading) return;
     if (!user) {
       router.replace("/auth");
       return;
@@ -43,7 +44,7 @@ export default function GatedView() {
       .gatedUrl()
       .then((res) => setUrl(res.url))
       .catch((e) => setError(e?.message || "Could not load."));
-  }, [user, router]);
+  }, [user, loading, router]);
 
   if (error) {
     return (
@@ -145,8 +146,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   headerLogo: { width: 110, height: 36 },
-  fallbackLogo: { width: 200, height: 200, marginBottom: 8 },
-  headerActions: { flexDirection: "row", gap: 6 },
+  fallbackLogo: { width: 200, height: 200, marginBottom: 8 },headerActions: { flexDirection: "row", gap: 6 },
   iconBtn: {
     width: 44,
     height: 44,
@@ -170,7 +170,18 @@ const styles = StyleSheet.create({
   errBtnText: { color: "#0A0A0A", fontWeight: "700" },
   webFallback: {
     flex: 1,
-    padding: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fallbackBgLogo: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+    opacity: 0.18,
+  },
+  fallbackContent: {
+    width: "100%",
+    paddingHorizontal: 28,
     alignItems: "center",
     justifyContent: "center",
     gap: 14,
