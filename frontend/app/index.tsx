@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
+  Image,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +14,7 @@ import { useAuth } from "../src/auth";
 import { colors } from "../src/theme";
 
 const BG = "https://images.unsplash.com/photo-1760224254117-7a40f7f03fe2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBsdXh1cnklMjB0ZXh0dXJlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzcxMDExNDF8MA&ixlib=rb-4.1.0&q=85";
+const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/artifacts/lz4eqr36_AI_Generated_Logo_2026-03-14_2b734a39-d5dc-4b54-9b2d-146561d4e1e2.png";
 
 export default function Welcome() {
   const router = useRouter();
@@ -38,11 +40,18 @@ export default function Welcome() {
     <ImageBackground source={{ uri: BG }} style={styles.bg} resizeMode="cover">
       <View style={styles.overlay} />
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-        <View style={styles.topSpacer} />
+        <View style={styles.topSpacer}>
+          <Image
+            source={{ uri: LOGO }}
+            style={styles.logo}
+            resizeMode="contain"
+            testID="welcome-logo"
+          />
+        </View>
 
         <View style={styles.bottomSheet} testID="welcome-screen">
           <Text style={styles.eyebrow}>PREMIUM ACCESS</Text>
-          <Text style={styles.title}>Captn Hack{"\n"}Streams</Text>
+          <Text style={styles.title}>Welcome aboard,{"\n"}matey</Text>
           <Text style={styles.subtitle}>
             Unlimited TV & movies. Members-only vault. Zero logs.
           </Text>
@@ -74,7 +83,8 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(3,3,5,0.55)" },
   loader: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, justifyContent: "flex-end" },
-  topSpacer: { flex: 1 },
+  topSpacer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  logo: { width: "85%", aspectRatio: 1, maxWidth: 360, maxHeight: 360 },
   bottomSheet: {
     paddingHorizontal: 28,
     paddingTop: 36,
