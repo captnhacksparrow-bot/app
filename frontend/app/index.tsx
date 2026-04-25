@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ImageBackground,
   Image,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,6 +20,9 @@ const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/art
 export default function Welcome() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { width: winW } = useWindowDimensions();
+  const [logoErr, setLogoErr] = useState(false);
+  const logoSize = Math.min(320, Math.round(winW * 0.7));
 
   useEffect(() => {
     if (loading) return;
@@ -41,12 +45,19 @@ export default function Welcome() {
       <View style={styles.overlay} />
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.topSpacer}>
-          <Image
-            source={{ uri: LOGO }}
-            style={styles.logo}
-            resizeMode="contain"
-            testID="welcome-logo"
-          />
+          {logoErr ? (
+            <Text style={styles.logoFallback} testID="welcome-logo-fallback">
+              CAPT&apos;N{"\n"}HACK{"\n"}STREAMS
+            </Text>
+          ) : (
+            <Image
+              source={{ uri: LOGO }}
+              style={{ width: logoSize, height: logoSize }}
+              resizeMode="contain"
+              onError={() => setLogoErr(true)}
+              testID="welcome-logo"
+            />
+          )}
         </View>
 
         <View style={styles.bottomSheet} testID="welcome-screen">
@@ -85,6 +96,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "flex-end" },
   topSpacer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   logo: { width: "85%", aspectRatio: 1, maxWidth: 360, maxHeight: 360 },
+  logoFallback: {
+    fontSize: 44,
+    fontWeight: "800",
+    color: colors.primary,
+    textAlign: "center",
+    letterSpacing: 2,
+    lineHeight: 52,
+  },
   bottomSheet: {
     paddingHorizontal: 28,
     paddingTop: 36,
