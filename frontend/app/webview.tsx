@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -15,6 +16,8 @@ import { Settings as SettingsIcon, RefreshCw } from "lucide-react-native";
 import { useAuth } from "../src/auth";
 import { api } from "../src/api";
 import { colors } from "../src/theme";
+
+const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/artifacts/lz4eqr36_AI_Generated_Logo_2026-03-14_2b734a39-d5dc-4b54-9b2d-146561d4e1e2.png";
 
 export default function GatedView() {
   const router = useRouter();
@@ -63,7 +66,7 @@ export default function GatedView() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="webview-screen">
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Captn Hack</Text>
+        <Image source={{ uri: LOGO }} style={styles.headerLogo} resizeMode="contain" />
         <View style={styles.headerActions}>
           <Pressable
             testID="webview-reload"
@@ -141,6 +144,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
+  headerLogo: { width: 110, height: 36 },
+  fallbackLogo: { width: 200, height: 200, marginBottom: 8 },
   headerActions: { flexDirection: "row", gap: 6 },
   iconBtn: {
     width: 44,
