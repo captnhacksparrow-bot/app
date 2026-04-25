@@ -10,7 +10,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import { WebView } from "react-native-webview";
 import { Settings as SettingsIcon, RefreshCw } from "lucide-react-native";
 import { useAuth } from "../src/auth";
@@ -21,12 +21,14 @@ const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/art
 
 export default function GatedView() {
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const { user, loading } = useAuth();
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (!rootNavState?.key) return;
     if (loading) return;
     if (!user) {
       router.replace("/auth");
@@ -44,7 +46,7 @@ export default function GatedView() {
       .gatedUrl()
       .then((res) => setUrl(res.url))
       .catch((e) => setError(e?.message || "Could not load."));
-  }, [user, loading, router]);
+  }, [user, loading, rootNavState?.key, router]);
 
   if (error) {
     return (

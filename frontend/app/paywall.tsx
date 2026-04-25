@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { Check, Sparkles, Lock } from "lucide-react-native";
 import { useAuth } from "../src/auth";
@@ -29,6 +29,7 @@ const FEATURES = [
 
 export default function Paywall() {
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const { user, signOut, refresh } = useAuth();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [price, setPrice] = useState<string>("$9.99/mo");
@@ -37,10 +38,11 @@ export default function Paywall() {
   const [hasOpened, setHasOpened] = useState(false);
 
   useEffect(() => {
+    if (!rootNavState?.key) return;
     if (!user) router.replace("/auth");
     else if (!user.email_verified) router.replace("/otp");
     else if (user.subscription_active) router.replace("/webview");
-  }, [user, router]);
+  }, [user, rootNavState?.key, router]);
 
   useEffect(() => {
     api.config().then((c) => {

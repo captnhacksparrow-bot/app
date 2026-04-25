@@ -11,7 +11,7 @@ import {
   Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import { useAuth } from "../src/auth";
 import { api } from "../src/api";
 import { colors } from "../src/theme";
@@ -20,6 +20,7 @@ const LEN = 6;
 
 export default function OTP() {
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const { user, refresh, signOut } = useAuth();
   const [digits, setDigits] = useState<string[]>(Array(LEN).fill(""));
   const [busy, setBusy] = useState(false);
@@ -29,12 +30,13 @@ export default function OTP() {
   const inputs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
+    if (!rootNavState?.key) return;
     if (!user) router.replace("/auth");
     else if (user.email_verified) {
       if (!user.subscription_active) router.replace("/paywall");
       else router.replace("/webview");
     }
-  }, [user, router]);
+  }, [user, rootNavState?.key, router]);
 
   const setDigit = (i: number, val: string) => {
     const cleaned = val.replace(/[^0-9]/g, "");

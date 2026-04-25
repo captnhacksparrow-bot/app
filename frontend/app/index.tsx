@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import { useAuth } from "../src/auth";
 import { colors } from "../src/theme";
 
@@ -19,18 +19,20 @@ const LOGO = "https://customer-assets.emergentagent.com/job_verified-users-1/art
 
 export default function Welcome() {
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const { user, loading } = useAuth();
   const { width: winW } = useWindowDimensions();
   const [logoErr, setLogoErr] = useState(false);
   const logoSize = Math.min(320, Math.round(winW * 0.7));
 
   useEffect(() => {
+    if (!rootNavState?.key) return;
     if (loading) return;
     if (!user) return;
     if (!user.email_verified) router.replace("/otp");
     else if (!user.subscription_active) router.replace("/paywall");
     else router.replace("/webview");
-  }, [user, loading, router]);
+  }, [user, loading, rootNavState?.key, router]);
 
   if (loading) {
     return (

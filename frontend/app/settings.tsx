@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useRootNavigationState } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, Mail, ShieldCheck, LogOut, RefreshCw, CreditCard } from "lucide-react-native";
 import { useAuth } from "../src/auth";
@@ -18,14 +18,16 @@ import { colors } from "../src/theme";
 
 export default function Settings() {
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const { user, loading, signOut, refresh } = useAuth();
   const [recheck, setRecheck] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!rootNavState?.key) return;
     if (!loading && !user) router.replace("/auth");
-  }, [loading, user, router]);
+  }, [loading, user, rootNavState?.key, router]);
 
   const openPortal = async () => {
     setPortalBusy(true);
