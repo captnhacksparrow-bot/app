@@ -1,0 +1,133 @@
+{
+  "theme": "Dark",
+  "archetype": "Archetype 5: Jewel & Luxury",
+  "colors": {
+    "background": "#030305",
+    "surface": "#0F1016",
+    "surface_glass": "rgba(15, 16, 22, 0.6)",
+    "primary": "#D97706",
+    "primary_hover": "#F59E0B",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8",
+    "border": "rgba(255, 255, 255, 0.1)",
+    "error": "#EF4444",
+    "success": "#10B981",
+    "accent_glow": "rgba(217, 119, 6, 0.25)"
+  },
+  "typography": {
+    "headings_font": "Outfit, sans-serif",
+    "body_font": "Manrope, sans-serif",
+    "h1": "text-4xl sm:text-5xl tracking-tighter font-light",
+    "h2": "text-2xl sm:text-3xl tracking-tight font-medium text-white",
+    "h3": "text-xl sm:text-2xl tracking-tight text-white",
+    "body": "text-base leading-relaxed text-[#94A3B8]",
+    "labels": "text-xs tracking-[0.2em] uppercase font-bold text-[#94A3B8]"
+  },
+  "spacing": {
+    "container_padding": "p-6 sm:p-8",
+    "section_gap": "gap-8 sm:gap-12",
+    "element_gap": "gap-4 sm:gap-6",
+    "border_radius": {
+      "cards": "rounded-3xl",
+      "buttons": "rounded-full",
+      "inputs": "rounded-2xl"
+    },
+    "touch_targets": "min-h-[56px]"
+  },
+  "surfaces": {
+    "bottom_sheet": "backdrop-blur-2xl bg-black/70 border-t border-white/10 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]",
+    "cards": "bg-[#0F1016] border border-white/5 shadow-2xl",
+    "inputs": "bg-white/5 border border-white/10 focus:border-[#D97706] focus:bg-white/10 transition-colors text-white",
+    "glass": "backdrop-blur-xl bg-white/5 border border-white/10"
+  },
+  "motion": {
+    "page_transition": "opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+    "button_press": "scale 0.97 transition-transform duration-100",
+    "hover": "transition-all duration-300 ease-out"
+  },
+  "image_urls": [
+    {
+      "category": "welcome_background",
+      "url": "https://images.unsplash.com/photo-1760224254117-7a40f7f03fe2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBsdXh1cnklMjB0ZXh0dXJlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NzcxMDExNDF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Cinematic dark blue fabric texture. Use as a full-screen background for the Welcome and Paywall screens with an overlay of bg-black/40 to ensure text readability."
+    },
+    {
+      "category": "paywall_texture",
+      "url": "https://images.pexels.com/photos/30263578/pexels-photo-30263578.jpeg",
+      "description": "Rich dark textured backdrop for the paywall screen, provides a premium VIP feel."
+    }
+  ],
+  "screens": {
+    "Welcome": {
+      "layout": "Full-screen background image (cover), bottom-aligned glassmorphism container",
+      "elements": [
+        "H1: 'Captn Hack Streams'",
+        "Subtitle: 'Premium TV & Movies. Zero logs.'",
+        "Primary CTA: 'Enter the Vault' (Navigates to Auth)"
+      ],
+      "styling": "Container needs generous top padding inside the bottom sheet (pt-10 pb-12 px-6). Use p-8 overall. Primary CTA must use solid #D97706 with black text for contrast."
+    },
+    "Auth": {
+      "layout": "Safe area top, back button, left-aligned typography.",
+      "elements": [
+        "H2: 'Access your chest'",
+        "Email & Password inputs",
+        "Primary CTA: 'Continue'"
+      ],
+      "styling": "Inputs must be massive for touch targets (min-h-[56px] or h-14). Labels floating or clearly above. Use rounded-2xl."
+    },
+    "OTP": {
+      "layout": "Centered content, highly focused.",
+      "elements": [
+        "H2: 'Verify transmission'",
+        "Subtitle: 'Enter the 6-digit code sent to your email.'",
+        "6 individual square inputs"
+      ],
+      "styling": "OTP squares must be text-2xl font-bold, h-14 w-12 rounded-xl bg-white/5 border border-white/10 text-center. Focus adds gold border. Layout must be flex-row justify-between."
+    },
+    "Paywall": {
+      "layout": "Scrollable content, bottom-fixed sticky CTA.",
+      "elements": [
+        "Background: dark texture image with heavy vignette (bg-gradient-to-t from-black via-black/80 to-transparent).",
+        "H1: 'Unlock the Vault'",
+        "Feature List: 'Unlimited Streaming', 'Ad-free Experience', 'Premium 4K Support'. Use Lucide Icons.",
+        "Pricing Card: 'Monthly Plunder - $X/mo'",
+        "Bottom Sticky Container: Glassmorphism with massive 'Subscribe' button (opens Stripe Link)."
+      ],
+      "styling": "The pricing card must have a glowing border effect ('Tracing Beam' look) using rgba(217,119,6,0.3). Sticky CTA container should use backdrop-blur-2xl with pb-safe to avoid bottom notches."
+    },
+    "VerifySubscription": {
+      "layout": "Centered, immersive loading screen.",
+      "elements": [
+        "Animated SVG or Spinner (Subtle gold glow).",
+        "H3: 'Unlocking your chest...'"
+      ]
+    },
+    "WebView": {
+      "layout": "Edge-to-edge WebView.",
+      "elements": [
+        "Top Header: H-14, solid #0F1016 or glassmorphism, with 'Captn Hack' centered and a Settings gear icon on the right.",
+        "Main: WebView pointing to https://captnhacksparrow.edgeone.app/"
+      ]
+    },
+    "Settings": {
+      "layout": "List-based UI, top-aligned.",
+      "elements": [
+        "User Email display",
+        "Manage Subscription (Links to Stripe Portal)",
+        "Log Out button (Destructive/Red text)"
+      ],
+      "styling": "List items must be h-16, flex-row, items-center, border-b border-white/5. Destructive action uses #EF4444."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Since this is an Expo React Native hybrid app, apply Tailwind classes using NativeWind or your framework's equivalent.",
+    "Do NOT use HTML elements like <form> or <select> if building in pure React Native. Map these Tailwind classes to <View>, <Text>, <TextInput>, and <TouchableOpacity>.",
+    "Ensure the hero background images are set with a dark overlay to maintain WCAG AA contrast for text.",
+    "Use Lucide-react-native or Phosphor Icons for all icons.",
+    "For the paywall, implement a glowing or premium border on the active plan using standard CSS or React Native Reanimated.",
+    "Ensure all interactive elements have data-testid attributes for testing (e.g. data-testid='auth-continue-button').",
+    "All touch targets must be at least 48px, ideally 56px (h-14) as specified in the spacing rules.",
+    "Use Outfit for Headings and Manrope for Body font."
+  ]
+}
