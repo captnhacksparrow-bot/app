@@ -41,9 +41,8 @@ STRIPE_PAYMENT_LINK = os.environ.get('STRIPE_PAYMENT_LINK', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PORTAL_LOGIN_URL = os.environ.get('STRIPE_PORTAL_LOGIN_URL', '')
 GATED_URL = os.environ.get('GATED_URL', '')
-MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
-MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@captnhack.com')
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 SENDER_NAME = os.environ.get('SENDER_NAME', 'Captn Hack')
 SUBSCRIPTION_PRICE_LABEL = os.environ.get('SUBSCRIPTION_PRICE_LABEL', '$9.99/mo')
 
@@ -145,7 +144,7 @@ def generate_otp() -> str:
 
 
 async def send_otp_email(email: str, code: str) -> None:
-    """Send OTP via Mailjet if configured, otherwise log to console."""
+    """Send OTP via Resend if configured, otherwise log to console."""
     subject = "Your Captn Hack verification code"
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#030305;color:#F8FAFC;padding:32px">
@@ -160,37 +159,33 @@ async def send_otp_email(email: str, code: str) -> None:
     """
     text = f"Your Captn Hack verification code is: {code}\n\nThis code expires in 10 minutes."
 
-    if MAILJET_API_KEY and MAILJET_SECRET_KEY:
+    if RESEND_API_KEY:
         try:
             payload = {
-                "Messages": [
-                    {
-                        "From": {"Email": SENDER_EMAIL, "Name": SENDER_NAME},
-                        "To": [{"Email": email}],
-                        "Subject": subject,
-                        "TextPart": text,
-                        "HTMLPart": html,
-                    }
-                ]
+                "from": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+                "to": [email],
+                "subject": subject,
+                "html": html,
+                "text": text,
             }
 
             def _send():
                 return requests.post(
-                    "https://api.mailjet.com/v3.1/send",
+                    "https://api.resend.com/emails",
                     json=payload,
-                    auth=HTTPBasicAuth(MAILJET_API_KEY, MAILJET_SECRET_KEY),
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
                     timeout=15,
                 )
 
             resp = await asyncio.to_thread(_send)
-            if resp.status_code in (200, 201):
-                logger.info(f"OTP emailed to {email} via Mailjet (status {resp.status_code})")
+            if resp.status_code in (200, 201, 202):
+                logger.info(f"OTP emailed to {email} via Resend (status {resp.status_code})")
                 return
-            logger.error(f"Mailjet send failed for {email}: HTTP {resp.status_code} - {resp.text}")
+            logger.error(f"Resend send failed for {email}: HTTP {resp.status_code} - {resp.text}")
         except Exception as e:
-            logger.error(f"Mailjet exception for {email}: {e}")
+            logger.error(f"Resend exception for {email}: {e}")
 
-    # Fallback: log to console (dev / testing / mailjet failure)
+    # Fallback: log to console (dev / testing / send failure)
     logger.info(f"[OTP-DEV] code for {email} = {code}")
 
 
