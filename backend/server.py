@@ -39,6 +39,7 @@ JWT_ALG = "HS256"
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 STRIPE_PAYMENT_LINK = os.environ.get('STRIPE_PAYMENT_LINK', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_PORTAL_LOGIN_URL = os.environ.get('STRIPE_PORTAL_LOGIN_URL', '')
 GATED_URL = os.environ.get('GATED_URL', '')
 MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
 MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
@@ -381,6 +382,10 @@ async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_us
             lambda: stripe.Customer.list(email=user["email"], limit=1)
         )
         if not customers.data:
+            # Fallback: hand back the public Customer Portal login URL so the user
+            # can enter their email and receive a magic-link to manage their sub.
+            if STRIPE_PORTAL_LOGIN_URL:
+                return {"url": STRIPE_PORTAL_LOGIN_URL, "fallback": True}
             raise HTTPException(
                 status_code=404,
                 detail="No Stripe customer found for this email. Subscribe first.",
@@ -392,10 +397,12 @@ async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_us
                 customer=customer_id, return_url=return_url
             )
         )
-        return {"url": session.url}
+        return {"url": session.url, "fallback": False}
     except stripe.error.InvalidRequestError as e:
         msg = str(e)
         if "configuration" in msg.lower() or "no configuration" in msg.lower():
+            if STRIPE_PORTAL_LOGIN_URL:
+                return {"url": STRIPE_PORTAL_LOGIN_URL, "fallback": True}
             raise HTTPException(
                 status_code=409,
                 detail=(
