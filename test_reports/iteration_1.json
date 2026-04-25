@@ -1,0 +1,48 @@
+{
+  "summary": "Tested both backend (14/14 pytest passing) and frontend (Welcome -> Auth -> OTP -> Paywall -> Settings) of the Captn Hack paywall app. Backend: all auth, OTP, Stripe subscription check, and gated URL endpoints behave per spec; Stripe live key works (no 502). Frontend: register flow, OTP entry, paywall rendering, localStorage token persistence and session restore on refresh all work. Two real frontend issues found: (1) /settings is accessible when logged out and renders an empty Account row, (2) On web, clicking 'Subscribe with Stripe' does NOT swap in the verify button because expo-web-browser's openBrowserAsync resolves silently without firing setHasOpened in the way it does on native — leaving the user unable to trigger the post-payment verification.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "CORS", "issue": "allow_origins=['*'] with allow_credentials=False is acceptable for paywall (token-bearer only) but worth documenting."},
+      {"endpoint": "POST /api/auth/otp/verify", "issue": "OTP records are kept in DB after success (used=true) — fine, but no TTL index on otp_codes; consider expireAfterSeconds index on expires_at."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/settings.tsx", "issue": "Screen has no auth guard. When loaded without a token (or before AuthProvider finishes refresh), Account row email is blank and subscription shows 'Inactive'. Should redirect unauthenticated users to '/' or '/auth' and show a loader while loading.", "testID": "settings-screen", "priority": "MEDIUM"},
+      {"component": "app/paywall.tsx", "issue": "On web, after pressing 'Subscribe with Stripe' (testID paywall-subscribe-button), expo-web-browser.openBrowserAsync resolves but window.open is popup-blocked / silently no-ops, so setHasOpened may not be reached — verify button (testID paywall-verify-button) never appears, blocking the post-payment flow on web. Recommend: on Platform.OS==='web', use window.open(url,'_blank') directly and unconditionally setHasOpened(true), or always render a 'I have already paid — verify' link.", "testID": "paywall-subscribe-button", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Web checkout -> verify", "issue": "The 'Subscribe with Stripe' click on web did not transition the CTA to 'I've paid — verify & unlock'. User cannot verify their subscription from web without manually re-loading paywall (which still shows Subscribe). On native this works through expo-web-browser.", "affected_testIDs": ["paywall-subscribe-button", "paywall-verify-button"]}
+    ],
+    "design_issues": [
+      {"screen": "settings", "issues": ["Account row label is shown but value is empty when user is not loaded — looks broken; should show a skeleton or hide row until loaded."]}
+    ],
+    "react_native_issues": [
+      {"component": "app/paywall.tsx + app/index.tsx + app/auth.tsx", "issue": "Expo logs warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' (cosmetic; not blocking)."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_paywall_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add auth guard to /settings: if !user && !loading, router.replace('/auth'); show loader while loading.",
+    "Fix /paywall web checkout flow: on Platform.OS==='web', call window.open(url,'_blank') and setHasOpened(true) unconditionally so the verify button always appears after the user initiates checkout. Optionally always render a small 'I've already paid — verify' link as a fallback.",
+    "Optional: add Mongo TTL index on otp_codes.expires_at to auto-purge expired codes."
+  ],
+  "critical_code_review_comments": [
+    "server.py line 18 imports `resend` unconditionally; harmless but the package adds startup weight even when RESEND_API_KEY is empty.",
+    "OTP rotation deletes prior codes (good). No rate-limit on /auth/otp/resend — a malicious authenticated user could spam Resend. Consider a per-user cooldown.",
+    "subscription/check returns 403 if email_unverified — frontend correctly hides this path, but consumers should know.",
+    "/api/gated/url returns 402 (no sub) and 403 (email not verified). Verified by tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_paywall_api.py (new pytest suite)",
+    "/app/backend/tests/__init__.py (new, empty)",
+    "/app/test_reports/pytest/pytest_results.xml (generated)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "~85% (core flow works; settings auth-guard and web checkout transition broken)"},
+  "seed_data_creation": "None. Test users TEST_user_<uuid>@example.com and feuser_<uuid>@example.com are created on the fly during tests; not cleaned up (DB-side persistence is fine).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_paywall_api.py reads OTPs by tailing /var/log/supervisor/backend.err.log — backend lowercases emails, so always grep with .lower(). EXPO_PUBLIC_BACKEND_URL=https://verified-users-1.preview.emergentagent.com. Frontend localStorage key for token is 'captnhack_auth_token'. Stripe live key is configured and confirmed working (returns subscription_active:false for new emails, no 502). On web, paywall verify button transition is broken — re-test after main agent fix.",
+  "rca_of_issue": "Paywall web flow: paywall.tsx uses `await WebBrowser.openBrowserAsync(url)` which on Expo web triggers a `window.open` internally; if the browser blocks the popup or the promise resolves before the user returns, setHasOpened(true) may execute but in many cases on web the openBrowserAsync call rejects silently or the state update is lost on re-render due to user/router redirect effects. Fixing requires: (a) on web, call window.open() directly and immediately setHasOpened(true); (b) make hasOpened survive remounts (useRef or persisted state) and (c) always provide a manual 'verify' link. Settings auth guard: src/auth.tsx provides `loading` flag but app/settings.tsx never reads it, so the screen renders with user=null on direct navigation/refresh."
+}
