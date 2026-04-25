@@ -45,6 +45,7 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 SENDER_NAME = os.environ.get('SENDER_NAME', 'Captn Hack')
 SUBSCRIPTION_PRICE_LABEL = os.environ.get('SUBSCRIPTION_PRICE_LABEL', '$9.99/mo')
+APP_URL = os.environ.get('APP_URL', 'https://verified-users-1.preview.emergentagent.com')
 
 stripe.api_key = STRIPE_API_KEY
 
@@ -386,7 +387,7 @@ async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_us
                 detail="No Stripe customer found for this email. Subscribe first.",
             )
         customer_id = customers.data[0].id
-        return_url = req.return_url or "https://captnhacksparrow.edgeone.app/"
+        return_url = req.return_url or APP_URL
         session = await asyncio.to_thread(
             lambda: stripe.billing_portal.Session.create(
                 customer=customer_id, return_url=return_url
@@ -428,10 +429,17 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid webhook: {str(e)}")
 
-    event_type = event.get("type", "")
-    obj = event.get("data", {}).get("object", {}) or {}
+    # Stripe Event is a StripeObject; convert to plain dict for safe .get() access.
+    try:
+        event_dict = event.to_dict_recursive() if hasattr(event, "to_dict_recursive") else dict(event)
+    except Exception:
+        import json as _json
+        event_dict = _json.loads(payload.decode("utf-8"))
 
-    event_id = event.get("id")
+    event_type = event_dict.get("type", "")
+    obj = (event_dict.get("data") or {}).get("object") or {}
+
+    event_id = event_dict.get("id")
     if event_id:
         already = await db.stripe_events.find_one({"event_id": event_id})
         if already:
