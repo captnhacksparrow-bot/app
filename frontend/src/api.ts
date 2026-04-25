@@ -64,4 +64,10 @@ export const api = {
   checkSubscription: () =>
     request<{ subscription_active: boolean }>("/subscription/check", { method: "POST", auth: true }),
   gatedUrl: () => request<{ url: string }>("/gated/url", { auth: true }),
+  billingPortal: (returnUrl?: string) =>
+    request<{ url: string }>("/billing/portal", {
+      method: "POST",
+      body: { return_url: returnUrl ?? null },
+      auth: true,
+    }),
 };

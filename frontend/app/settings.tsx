@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Mail, ShieldCheck, LogOut, RefreshCw } from "lucide-react-native";
+import * as WebBrowser from "expo-web-browser";
+import { ArrowLeft, Mail, ShieldCheck, LogOut, RefreshCw, CreditCard } from "lucide-react-native";
 import { useAuth } from "../src/auth";
 import { api } from "../src/api";
 import { colors } from "../src/theme";
@@ -18,11 +20,29 @@ export default function Settings() {
   const router = useRouter();
   const { user, loading, signOut, refresh } = useAuth();
   const [recheck, setRecheck] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/auth");
   }, [loading, user, router]);
+
+  const openPortal = async () => {
+    setPortalBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.billingPortal();
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") window.open(res.url, "_blank");
+      } else {
+        await WebBrowser.openBrowserAsync(res.url);
+      }
+    } catch (e: any) {
+      setMsg(e?.message || "Could not open billing portal.");
+    } finally {
+      setPortalBusy(false);
+    }
+  };
 
   if (loading || !user) {
     return (
@@ -104,6 +124,22 @@ export default function Settings() {
             <>
               <RefreshCw color={colors.textPrimary} size={16} />
               <Text style={styles.actionText}>Re-check subscription</Text>
+            </>
+          )}
+        </Pressable>
+
+        <Pressable
+          testID="settings-manage-subscription-button"
+          onPress={openPortal}
+          style={[styles.action, { marginTop: 12 }]}
+          disabled={portalBusy}
+        >
+          {portalBusy ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <>
+              <CreditCard color={colors.textPrimary} size={16} />
+              <Text style={styles.actionText}>Manage subscription</Text>
             </>
           )}
         </Pressable>

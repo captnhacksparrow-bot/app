@@ -15,7 +15,8 @@ from typing import Optional
 import bcrypt
 import jwt
 import stripe
-import resend
+import requests
+from requests.auth import HTTPBasicAuth
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
@@ -38,13 +39,13 @@ JWT_ALG = "HS256"
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 STRIPE_PAYMENT_LINK = os.environ.get('STRIPE_PAYMENT_LINK', '')
 GATED_URL = os.environ.get('GATED_URL', '')
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
+MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@captnhack.com')
+SENDER_NAME = os.environ.get('SENDER_NAME', 'Captn Hack')
 SUBSCRIPTION_PRICE_LABEL = os.environ.get('SUBSCRIPTION_PRICE_LABEL', '$9.99/mo')
 
 stripe.api_key = STRIPE_API_KEY
-if RESEND_API_KEY:
-    resend.api_key = RESEND_API_KEY
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -142,7 +143,7 @@ def generate_otp() -> str:
 
 
 async def send_otp_email(email: str, code: str) -> None:
-    """Send OTP via Resend if configured, otherwise log to console."""
+    """Send OTP via Mailjet if configured, otherwise log to console."""
     subject = "Your Captn Hack verification code"
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#030305;color:#F8FAFC;padding:32px">
@@ -155,15 +156,39 @@ async def send_otp_email(email: str, code: str) -> None:
       <p style="color:#94A3B8;font-size:13px">This code expires in 10 minutes.</p>
     </div>
     """
-    if RESEND_API_KEY:
+    text = f"Your Captn Hack verification code is: {code}\n\nThis code expires in 10 minutes."
+
+    if MAILJET_API_KEY and MAILJET_SECRET_KEY:
         try:
-            params = {"from": SENDER_EMAIL, "to": [email], "subject": subject, "html": html}
-            await asyncio.to_thread(resend.Emails.send, params)
-            logger.info(f"OTP emailed to {email}")
-            return
+            payload = {
+                "Messages": [
+                    {
+                        "From": {"Email": SENDER_EMAIL, "Name": SENDER_NAME},
+                        "To": [{"Email": email}],
+                        "Subject": subject,
+                        "TextPart": text,
+                        "HTMLPart": html,
+                    }
+                ]
+            }
+
+            def _send():
+                return requests.post(
+                    "https://api.mailjet.com/v3.1/send",
+                    json=payload,
+                    auth=HTTPBasicAuth(MAILJET_API_KEY, MAILJET_SECRET_KEY),
+                    timeout=15,
+                )
+
+            resp = await asyncio.to_thread(_send)
+            if resp.status_code in (200, 201):
+                logger.info(f"OTP emailed to {email} via Mailjet (status {resp.status_code})")
+                return
+            logger.error(f"Mailjet send failed for {email}: HTTP {resp.status_code} - {resp.text}")
         except Exception as e:
-            logger.error(f"Resend send failed for {email}: {e}")
-    # Fallback: log to console (dev / testing)
+            logger.error(f"Mailjet exception for {email}: {e}")
+
+    # Fallback: log to console (dev / testing / mailjet failure)
     logger.info(f"[OTP-DEV] code for {email} = {code}")
 
 
@@ -319,6 +344,51 @@ async def gated_url(user: dict = Depends(get_current_user)):
     if not user.get("subscription_active"):
         raise HTTPException(status_code=402, detail="Subscription required")
     return {"url": GATED_URL}
+
+
+# ---- BILLING PORTAL --------------------------------------------------------
+class PortalRequest(BaseModel):
+    return_url: Optional[str] = None
+
+
+@api.post("/billing/portal")
+async def billing_portal(req: PortalRequest, user: dict = Depends(get_current_user)):
+    """Create a Stripe Customer Portal session so the user can manage their subscription."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(status_code=503, detail="Billing not configured")
+    try:
+        # Find the customer by email on the Stripe account.
+        customers = await asyncio.to_thread(
+            lambda: stripe.Customer.list(email=user["email"], limit=1)
+        )
+        if not customers.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Stripe customer found for this email. Subscribe first.",
+            )
+        customer_id = customers.data[0].id
+        return_url = req.return_url or "https://captnhacksparrow.edgeone.app/"
+        session = await asyncio.to_thread(
+            lambda: stripe.billing_portal.Session.create(
+                customer=customer_id, return_url=return_url
+            )
+        )
+        return {"url": session.url}
+    except stripe.error.InvalidRequestError as e:
+        # Most common: portal not configured on Stripe Dashboard.
+        msg = str(e)
+        if "configuration" in msg.lower() or "no configuration" in msg.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Stripe Customer Portal is not configured. "
+                    "Enable it in your Stripe Dashboard at "
+                    "https://dashboard.stripe.com/settings/billing/portal"
+                ),
+            )
+        raise HTTPException(status_code=502, detail=f"Stripe error: {msg}")
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
 
 
 # ---------------------------------------------------------------------------
