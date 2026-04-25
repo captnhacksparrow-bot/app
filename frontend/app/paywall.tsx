@@ -8,6 +8,7 @@ import {
   ScrollView,
   ImageBackground,
   Pressable,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -55,10 +56,16 @@ export default function Paywall() {
       user?.email ?? ""
     )}`;
     try {
-      await WebBrowser.openBrowserAsync(url);
-      setHasOpened(true);
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") window.open(url, "_blank");
+      } else {
+        await WebBrowser.openBrowserAsync(url);
+      }
     } catch (e: any) {
       setError(e?.message || "Could not open checkout.");
+    } finally {
+      // Always reveal the verify button so user can confirm payment after returning.
+      setHasOpened(true);
     }
   };
 

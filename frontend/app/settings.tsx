@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,9 +16,23 @@ import { colors } from "../src/theme";
 
 export default function Settings() {
   const router = useRouter();
-  const { user, signOut, refresh } = useAuth();
+  const { user, loading, signOut, refresh } = useAuth();
   const [recheck, setRecheck] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) router.replace("/auth");
+  }, [loading, user, router]);
+
+  if (loading || !user) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="settings-loading">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const recheckSub = async () => {
     setRecheck(true);
